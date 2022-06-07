@@ -6,6 +6,9 @@ import { promises as fs } from 'fs';
 export const PACKAGE_JSON = 'package.json';
 export const LATEST = 'latest';
 
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
+
 export interface PinLatestProps {
     targetDirectory: string;
     exact: boolean;
@@ -38,24 +41,39 @@ const processDependencyBlock = async (
     const currentDepBlock: GenericObject = packageJson[key];
 
     for (const packageName in currentDepBlock) {
-        const currentPackage: string = currentDepBlock[packageName];
+        ////const currentPackage: string = currentDepBlock[packageName];
+        try {
+            const { stdout, stderr } = await exec('node -p "require(\'' + packageName + '/package.json\').version"');
 
-        if (currentPackage === LATEST) {
-            if (debug) {
-                console.log(`Pinning: ${key}/${packageName}`);
+            if(!stderr) {
+                const currentPackage: string = stdout.trim();
+                console.log('[' + packageName, '] version is: ', currentPackage);
+                //console.log(packageName, currentPackage);
+
+                //if (currentPackage === LATEST) {
+                    if (debug) {
+                        console.log(`Pinning: ${key}/${packageName}`);
+                    }
+
+                    try {
+                        //const { version } = await pj(packageName);
+                        //const versionToWrite = exact ? version : `^${version}`;
+                        const version = currentPackage;
+                        const versionToWrite = exact ? version : `^${version}`;
+
+                        packageJson[key][packageName] = versionToWrite;
+                    } catch {
+                        console.error(
+                            `Failed to fetch package info for: ${packageName}`
+                        );
+                        continue;
+                    }
+                //}
+            } else {
+                console.log(stderr);
             }
+        } catch(e) {
 
-            try {
-                const { version } = await pj(packageName);
-                const versionToWrite = exact ? version : `^${version}`;
-
-                packageJson[key][packageName] = versionToWrite;
-            } catch {
-                console.error(
-                    `Failed to fetch package info for: ${packageName}`
-                );
-                continue;
-            }
         }
     }
 
